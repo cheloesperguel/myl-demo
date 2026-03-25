@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Efecto Holográfico Selectivo - Gea</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --pointer-x: 50%;
+            --pointer-y: 50%;
+            --card-rt-x: 0deg;
+            --card-rt-y: 0deg;
+            --holo-opacity: 1;
+            --frame-opacity: 0.85;
+            --chroma-opacity: 0.2;
+        }
+
+        body {
+            background: #050505;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+
+        .card-perspective {
+            perspective: 1500px;
+            padding: 20px;
+        }
+
+        #card {
+            position: relative;
+            width: 350px;
+            /* El alto se ajusta por JS */
+            border-radius: 18px;
+            transform-style: preserve-3d;
+            transform: rotateX(var(--card-rt-x)) rotateY(var(--card-rt-y));
+            transition: transform 0.1s ease-out;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.9);
+            background: #111;
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.5s ease, transform 0.1s ease-out;
+        }
+
+        #card:hover {
+            animation: cardPulse 420ms ease-out 1;
+        }
+
+        #card.no-pulse:hover {
+            animation: none;
+        }
+
+        #card.visible {
+            opacity: 1;
+        }
+
+        .layer-shared {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 18px;
+        }
+
+        .card-base {
+            z-index: 1;
+            display: block;
+            object-fit: cover;
+            transition: transform 0.14s ease-out;
+        }
+
+        .holo-layer {
+            z-index: 2;
+            pointer-events: none;
+            mix-blend-mode: color-dodge;
+            opacity: 0;
+            transition: opacity 0.25s ease, filter 0.25s ease;
+            filter: saturate(1.45) brightness(1.2) contrast(1.12);
+            transform: translate3d(0, 0, 8px);
+            
+            background-image: 
+                linear-gradient(
+                    110deg,
+                    transparent 10%,
+                    rgba(255, 255, 255, 0.4) 25%,
+                    rgba(255, 220, 100, 0.2) 40%,
+                    rgba(150, 230, 255, 0.15) 50%,
+                    rgba(255, 150, 255, 0.15) 60%,
+                    rgba(255, 220, 100, 0.2) 75%,
+                    transparent 90%
+                );
+            background-size: 200% 200%;
+            background-position: var(--pointer-x) var(--pointer-y);
+            
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            -webkit-mask-size: 100% 100%;
+            mask-size: 100% 100%;
+            -webkit-mask-position: center;
+            mask-position: center;
+        }
+
+        .chroma-layer {
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0;
+            mix-blend-mode: screen;
+            transition: opacity 0.22s ease, filter 0.25s ease;
+            filter: saturate(1.9) brightness(1.08) contrast(1.05);
+            transform: translate3d(0, 0, 10px);
+            background-image: linear-gradient(
+                90deg,
+                rgba(55, 255, 255, 0.45),
+                rgba(255, 70, 230, 0.45)
+            );
+            background-size: 170% 100%;
+            background-position: calc(var(--pointer-x) + 5%) var(--pointer-y);
+        }
+
+        .sheen-layer {
+            z-index: 3;
+            pointer-events: none;
+            opacity: 0.38;
+            mix-blend-mode: screen;
+            background-image: linear-gradient(
+                115deg,
+                transparent 28%,
+                rgba(255, 255, 255, 0.08) 38%,
+                rgba(255, 255, 255, 0.75) 50%,
+                rgba(255, 255, 255, 0.08) 62%,
+                transparent 72%
+            );
+            background-size: 260% 100%;
+            background-position: -150% 0;
+            animation: sheenSweep 3.1s linear infinite;
+            transform: translate3d(0, 0, 14px);
+
+            -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+            -webkit-mask-size: 100% 100%;
+            mask-size: 100% 100%;
+            -webkit-mask-position: center;
+            mask-position: center;
+        }
+
+        .sparkles-layer {
+            z-index: 3;
+            pointer-events: none;
+            opacity: 0.55;
+            transition: opacity 0.25s ease;
+            transform: translate3d(0, 0, 16px);
+            mix-blend-mode: color-dodge;
+            filter: saturate(2) brightness(1.45) contrast(1.15);
+            background-image: url('https://assets.codepen.io/13471/sparkles.gif');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        .neon-frame {
+            position: absolute;
+            inset: 0;
+            z-index: 4;
+            pointer-events: none;
+            border-radius: 18px;
+            padding: 2px;
+            opacity: var(--frame-opacity);
+            background: conic-gradient(
+                from 10deg at var(--pointer-x) var(--pointer-y),
+                rgba(255, 240, 170, 0.85),
+                rgba(120, 235, 255, 0.9),
+                rgba(255, 150, 255, 0.88),
+                rgba(160, 255, 210, 0.86),
+                rgba(255, 220, 120, 0.9),
+                rgba(255, 240, 170, 0.85)
+            );
+            filter: saturate(1.7) brightness(1.25);
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+        }
+
+        #card:hover .holo-layer {
+            opacity: var(--holo-opacity);
+        }
+
+        #card:hover .chroma-layer {
+            opacity: var(--chroma-opacity);
+        }
+
+        #card:hover .sheen-layer {
+            opacity: 0.72;
+        }
+
+        #card:hover .sparkles-layer {
+            opacity: 1;
+        }
+
+        #card.no-holo .holo-layer {
+            opacity: 0 !important;
+        }
+
+        #card.no-chroma .chroma-layer {
+            opacity: 0 !important;
+        }
+
+        #card.no-sheen .sheen-layer {
+            opacity: 0 !important;
+            animation: none;
+        }
+
+        #card.no-sparkles .sparkles-layer {
+            opacity: 0 !important;
+        }
+
+        #card.no-neon .neon-frame {
+            opacity: 0 !important;
+        }
+
+        #loader {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            padding: 12px 24px;
+            border-radius: 40px;
+            border: 1px solid #ffd700;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .tone-panel {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 120;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: stretch;
+            background: rgba(8, 8, 8, 0.78);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 12px;
+            padding: 8px 10px;
+            backdrop-filter: blur(6px);
+            min-width: 240px;
+        }
+
+        .tone-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .effects-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px 10px;
+        }
+
+        .effect-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: #dfdfdf;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .effect-toggle input {
+            accent-color: #8ed9ff;
+            width: 14px;
+            height: 14px;
+        }
+
+        .tone-panel label {
+            font-size: 12px;
+            letter-spacing: 0.03em;
+            color: #e6e6e6;
+        }
+
+        .tone-panel select {
+            background: #141414;
+            color: #ffffff;
+            border: 1px solid #3f3f3f;
+            border-radius: 8px;
+            font-size: 12px;
+            padding: 4px 8px;
+            outline: none;
+        }
+
+        .tone-panel select:focus {
+            border-color: #b8e8ff;
+        }
+
+        .hidden { display: none !important; }
+
+        @keyframes sheenSweep {
+            0% { background-position: -165% 0; }
+            100% { background-position: 165% 0; }
+        }
+
+        @keyframes cardPulse {
+            0% {
+                box-shadow: 0 40px 80px rgba(0,0,0,0.9);
+                filter: brightness(1);
+            }
+            45% {
+                box-shadow: 0 45px 95px rgba(0,0,0,0.95), 0 0 34px rgba(160, 230, 255, 0.35);
+                filter: brightness(1.12);
+            }
+            100% {
+                box-shadow: 0 40px 80px rgba(0,0,0,0.9);
+                filter: brightness(1);
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="tone-panel">
+        <div class="tone-row">
+            <label for="cardImage">Carta</label>
+            <select id="cardImage">
+                <option value="01-Escarabeo-JO.png">Escarabeo</option>
+                <option value="02-Lobos-de-Zeus-JO.png" selected>Lobos de Zeus</option>
+                <option value="CLHDP-03.png">Fergus Dorado</option>
+                <option value="CLHEP-04.png">Gea Dorada</option>
+            </select>
+        </div>
+        <div class="tone-row">
+            <label for="tonePreset">Tono Holo</label>
+            <select id="tonePreset">
+                <option value="frio">Frio</option>
+                <option value="arcoiris" selected>Arcoiris</option>
+                <option value="dorado">Dorado intenso</option>
+            </select>
+        </div>
+        <div class="effects-grid" id="effectsPanel">
+            <label class="effect-toggle"><input type="checkbox" id="fxHolo" checked /> Holo base</label>
+            <label class="effect-toggle"><input type="checkbox" id="fxChroma" checked /> Aberracion</label>
+            <label class="effect-toggle"><input type="checkbox" id="fxSheen" checked /> Barrido</label>
+            <label class="effect-toggle"><input type="checkbox" id="fxNeon" checked /> Borde neon</label>
+            <label class="effect-toggle"><input type="checkbox" id="fxSparkles" checked /> Sparkles</label>
+            <label class="effect-toggle"><input type="checkbox" id="fxPulse" checked /> Pulse hover</label>
+        </div>
+    </div>
+
+    <div id="loader">Cargando carta...</div>
+
+    <div class="card-perspective">
+        <div id="card">
+            <img id="sourceImage" class="layer-shared card-base" alt="Carta Gea" />
+            <div id="holo" class="layer-shared holo-layer"></div>
+            <div id="chroma" class="layer-shared chroma-layer"></div>
+            <div id="sheen" class="layer-shared sheen-layer"></div>
+            <div id="sparkles" class="layer-shared sparkles-layer"></div>
+            <div class="neon-frame"></div>
+        </div>
+    </div>
+
+    <canvas id="maskCanvas" class="hidden"></canvas>
+
+    <script>
+        // Imágenes disponibles
+        let currentImageSrc = "02-Lobos-de-Zeus-JO.png";
+        
+        const card = document.getElementById('card');
+        const holo = document.getElementById('holo');
+        const loader = document.getElementById('loader');
+        const sourceImg = document.getElementById('sourceImage');
+        const maskCanvas = document.getElementById('maskCanvas');
+        const cardImageSelect = document.getElementById('cardImage');
+        const tonePresetSelect = document.getElementById('tonePreset');
+        const chroma = document.getElementById('chroma');
+        const sheen = document.getElementById('sheen');
+        const sparkles = document.getElementById('sparkles');
+        const fxHolo = document.getElementById('fxHolo');
+        const fxChroma = document.getElementById('fxChroma');
+        const fxSheen = document.getElementById('fxSheen');
+        const fxNeon = document.getElementById('fxNeon');
+        const fxSparkles = document.getElementById('fxSparkles');
+        const fxPulse = document.getElementById('fxPulse');
+
+        const tonePresets = {
+            frio: {
+                blendMode: 'screen',
+                size: '170% 170%',
+                opacity: 0.92,
+                frameOpacity: 0.9,
+                chromaOpacity: 0.18,
+                filter: 'hue-rotate(18deg) saturate(2.4) brightness(1.35) contrast(1.18)',
+                chromaFilter: 'hue-rotate(18deg) saturate(1.8) brightness(1.06)',
+                chromaGradient: 'linear-gradient(90deg, rgba(80, 245, 255, 0.42), rgba(170, 150, 255, 0.4))',
+                gradient: 'linear-gradient(110deg, transparent 8%, rgba(212, 244, 255, 0.7) 22%, rgba(120, 224, 255, 0.58) 39%, rgba(126, 180, 255, 0.5) 55%, rgba(160, 255, 245, 0.56) 74%, transparent 92%)'
+            },
+            arcoiris: {
+                blendMode: 'color-dodge',
+                size: '150% 150%',
+                opacity: 1,
+                frameOpacity: 0.86,
+                chromaOpacity: 0.22,
+                filter: 'hue-rotate(0deg) saturate(2.9) brightness(1.5) contrast(1.24)',
+                chromaFilter: 'hue-rotate(0deg) saturate(2.1) brightness(1.08)',
+                chromaGradient: 'linear-gradient(90deg, rgba(70, 250, 255, 0.48), rgba(255, 90, 240, 0.48))',
+                gradient: 'linear-gradient(110deg, transparent 6%, rgba(255, 255, 255, 0.82) 20%, rgba(255, 220, 100, 0.62) 34%, rgba(120, 255, 175, 0.5) 45%, rgba(150, 230, 255, 0.52) 56%, rgba(255, 150, 255, 0.56) 68%, rgba(255, 220, 100, 0.62) 82%, transparent 94%)'
+            },
+            dorado: {
+                blendMode: 'screen',
+                size: '145% 145%',
+                opacity: 0.98,
+                frameOpacity: 0.95,
+                chromaOpacity: 0.16,
+                filter: 'hue-rotate(-10deg) saturate(2.6) brightness(1.55) contrast(1.3)',
+                chromaFilter: 'hue-rotate(-10deg) saturate(1.65) brightness(1.04)',
+                chromaGradient: 'linear-gradient(90deg, rgba(105, 230, 255, 0.34), rgba(255, 165, 225, 0.32))',
+                gradient: 'linear-gradient(110deg, transparent 8%, rgba(255, 255, 236, 0.75) 19%, rgba(255, 230, 145, 0.68) 33%, rgba(255, 196, 82, 0.62) 49%, rgba(255, 243, 182, 0.6) 66%, rgba(255, 188, 70, 0.66) 82%, transparent 95%)'
+            }
+        };
+
+        function applyTonePreset(presetName) {
+            const preset = tonePresets[presetName] || tonePresets.arcoiris;
+            holo.style.backgroundImage = preset.gradient;
+            holo.style.backgroundSize = preset.size;
+            holo.style.mixBlendMode = preset.blendMode;
+            holo.style.filter = preset.filter;
+            chroma.style.backgroundImage = preset.chromaGradient;
+            chroma.style.filter = preset.chromaFilter;
+            card.style.setProperty('--holo-opacity', String(preset.opacity));
+            card.style.setProperty('--frame-opacity', String(preset.frameOpacity ?? 0.85));
+            card.style.setProperty('--chroma-opacity', String(preset.chromaOpacity ?? 0.3));
+        }
+
+        function applyEffectToggles() {
+            card.classList.toggle('no-holo', !fxHolo.checked);
+            card.classList.toggle('no-chroma', !fxChroma.checked);
+            card.classList.toggle('no-sheen', !fxSheen.checked);
+            card.classList.toggle('no-neon', !fxNeon.checked);
+            card.classList.toggle('no-sparkles', !fxSparkles.checked);
+            card.classList.toggle('no-pulse', !fxPulse.checked);
+        }
+
+        cardImageSelect.addEventListener('change', (event) => {
+            currentImageSrc = event.target.value;
+            loader.innerText = "Cargando carta...";
+            loader.classList.remove('hidden');
+            card.classList.remove('visible');
+            loadCardImage(currentImageSrc);
+        });
+
+        tonePresetSelect.addEventListener('change', (event) => {
+            applyTonePreset(event.target.value);
+        });
+
+        [fxHolo, fxChroma, fxSheen, fxNeon, fxSparkles, fxPulse].forEach((input) => {
+            input.addEventListener('change', applyEffectToggles);
+        });
+
+        applyTonePreset(tonePresetSelect.value);
+        applyEffectToggles();
+
+        function createPreciseMask(img) {
+            try {
+                const ctx = maskCanvas.getContext('2d', { willReadFrequently: true });
+                maskCanvas.width = img.naturalWidth;
+                maskCanvas.height = img.naturalHeight;
+                
+                ctx.drawImage(img, 0, 0);
+                const imageData = ctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+                const data = imageData.data;
+
+                let goldPixelsFound = 0;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i+1];
+                    const b = data[i+2];
+
+                    // Detección de dorado mejorada
+                    const isGold = (r > 105 && g > 85 && r > b * 1.3);
+                    const isWhiteGlow = (r > 220 && g > 210 && b > 180);
+
+                    if (isGold || isWhiteGlow) {
+                        const brightness = (r * 0.3 + g * 0.59 + b * 0.11);
+                        data[i+3] = brightness; 
+                        goldPixelsFound++;
+                    } else {
+                        data[i+3] = 0;
+                    }
+                }
+
+                if (goldPixelsFound === 0) return null;
+
+                ctx.putImageData(imageData, 0, 0);
+                return maskCanvas.toDataURL();
+            } catch (e) {
+                console.warn("No se pudo generar la máscara (posible error de CORS):", e);
+                return null;
+            }
+        }
+
+        function loadCardImage(imageSrc) {
+            const img = new Image();
+            // Intentar cargar con CORS, pero permitir fallback
+            img.crossOrigin = "Anonymous";
+            img.src = imageSrc;
+
+        img.onload = () => {
+            // Ajustar proporciones
+            const ratio = img.naturalHeight / img.naturalWidth;
+            card.style.height = `${card.offsetWidth * ratio}px`;
+            
+            // Asignar imagen base primero
+            sourceImg.src = img.src;
+            
+            // Intentar crear la máscara
+            const maskData = createPreciseMask(img);
+            if (maskData) {
+                holo.style.webkitMaskImage = `url(${maskData})`;
+                holo.style.maskImage = `url(${maskData})`;
+                sheen.style.webkitMaskImage = `url(${maskData})`;
+                sheen.style.maskImage = `url(${maskData})`;
+                sparkles.style.webkitMaskImage = `url(${maskData})`;
+                sparkles.style.maskImage = `url(${maskData})`;
+            } else {
+                // Si falla la máscara, quitamos la capa holo para evitar ruidos visuales
+                holo.classList.add('hidden');
+                sheen.classList.add('hidden');
+                sparkles.classList.add('hidden');
+            }
+            
+            // Mostrar carta
+            loader.classList.add('hidden');
+            card.classList.add('visible');
+        };
+
+            img.onerror = () => {
+                loader.innerText = "Error al cargar la imagen. Verifica la URL.";
+                loader.style.borderColor = "red";
+            };
+        }
+        
+        // Cargar la imagen inicial
+        loadCardImage(currentImageSrc);
+
+        // Movimiento
+        window.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (x < -100 || x > rect.width + 100 || y < -100 || y > rect.height + 100) return;
+
+            const xPct = (x / rect.width) * 100;
+            const yPct = (y / rect.height) * 100;
+            card.style.setProperty('--pointer-x', `${100 - xPct}%`);
+            card.style.setProperty('--pointer-y', `${100 - yPct}%`);
+
+            const rotX = ((y / rect.height) - 0.5) * -15;
+            const rotY = ((x / rect.width) - 0.5) * 15;
+
+            card.style.setProperty('--card-rt-x', `${rotX}deg`);
+            card.style.setProperty('--card-rt-y', `${rotY}deg`);
+
+        });
+
+        card.addEventListener('mouseleave', () => {
+            card.style.setProperty('--card-rt-x', `0deg`);
+            card.style.setProperty('--card-rt-y', `0deg`);
+        });
+    </script>
+</body>
+</html>
